@@ -17,9 +17,13 @@ bin/skills-link          idempotent distributor
 
 | Provider | Wiring | Why |
 | --- | --- | --- |
-| opencode | `~/.agents/skills` → `skills/` (whole-dir symlink) | reads `~/.agents/skills` natively |
-| claude | `~/.claude/skills` → `skills/` (whole-dir symlink) | personal skills location |
-| codex | `~/.codex/skills/<name>` → `skills/<name>` (per-skill symlinks) | `.system/` shares the directory, so it cannot be replaced |
+| opencode | `~/.agents/skills/<name>` → per-skill symlink | reads `~/.agents/skills` natively |
+| claude | `~/.claude/skills/<name>` → per-skill symlink | personal skills location |
+| codex | `~/.codex/skills/<name>` → per-skill symlink | `.system/` shares the directory |
+
+All three get real parent directories with per-skill child symlinks. Symlinked
+*parent* directories are not reliably traversed by the harnesses' skill scanners
+(opencode silently skips them), so the whole-dir-symlink variant is not used.
 
 Run after adding or removing a skill, and on a fresh machine:
 
@@ -42,8 +46,8 @@ On machines managed by dotfiles, `run_90-skills-link.sh` runs this on every
 
 ## Notes
 
-- Codex's skill-installer writes GitHub-sourced skills into `~/.agents/skills`, which is
-  this repo's checkout — review and commit what it adds. Its lock file stays machine-level
-  (`~/.agents/.skill-lock.json`, managed by dotfiles).
-- The `~/.agents/skills` and `~/.claude/skills` symlinks use an absolute target, so the
-  repo location is fixed at `~/skills`.
+- Codex's skill-installer writes GitHub-sourced skills into `~/.agents/skills`, which
+  then holds per-skill symlinks into this repo — review what the installer adds and
+  copy real skill directories into `skills/` here, then re-run `bin/skills-link`.
+  Its lock file stays machine-level (`~/.agents/.skill-lock.json`, managed by dotfiles).
+- The per-skill symlinks use absolute targets, so the repo location is fixed at `~/skills`.
