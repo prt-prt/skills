@@ -1,0 +1,94 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+content="$root/skills"
+dry=0
+if [ "${1:-}" = "--dry-run" ]; then dry=1; fi
+
+run() {
+  echo "+ $*"
+  if [ "$dry" = 0 ]; then "$@"; fi
+}
+
+refuse() {
+  echo "REFUSE $1: $2" >&2
+  exit 1
+}
+
+link_whole_dir() {
+  path=$1
+  if [ -L "$path" ]; then
+    current=$(readlink "$path")
+    if [ "$current" = "$content" ]; then
+      echo "ok   $path"
+    else
+      echo "relink $path ($current)"
+      run ln -sfn "$content" "$path"
+    fi
+    return 0
+  fi
+  if [ -d "$path" ]; then
+    if [ "$path" = "$HOME/.claude/skills" ]; then
+      for entry in "$path"/*; do
+        [ -e "$entry" ] || continue
+        [ -L "$entry" ] || refuse "$path" "contains non-symlink entry $entry; resolve manually"
+      done
+      echo "migrate $path (symlinks only) -> whole-dir link"
+      run rm -rf "$path"
+    else
+      for entry in "$path"/*; do
+        [ -e "$entry" ] || continue
+        name=$(basename "$entry")
+        [ -d "$content/$name" ] || refuse "$path" "entry $name has no counterpart in $content"
+        diff -rq -x .DS_Store "$entry" "$content/$name" >/dev/null 2>&1 || refuse "$path" "entry $name differs from repo copy; resolve manually"
+      done
+      echo "migrate $path (content matches repo) -> whole-dir link"
+      run rm -rf "$path"
+    fi
+    run ln -s "$content" "$path"
+    echo "done $path"
+    return 0
+  fi
+  [ -e "$path" ] && refuse "$path" "not a directory"
+  echo "link $path -> $content"
+  run mkdir -p "$(dirname "$path")"
+  run ln -s "$content" "$path"
+}
+
+link_codex() {
+  codex="$HOME/.codex/skills"
+  mkdir -p "$codex"
+  linked=" "
+  for skill in "$content"/*; do
+    name=$(basename "$skill")
+    link="$codex/$name"
+    if [ -L "$link" ] && [ "$(readlink "$link")" = "$skill" ]; then
+      echo "ok   $link"
+    elif [ -L "$link" ]; then
+      echo "relink $link ($(readlink "$link"))"
+      run ln -sfn "$skill" "$link"
+    elif [ -e "$link" ]; then
+      refuse "$link" "real file or directory in the way"
+    else
+      echo "link $link -> $skill"
+      run ln -s "$skill" "$link"
+    fi
+    linked="$linked$name "
+  done
+  for link in "$codex"/*; do
+    [ -L "$link" ] || continue
+    target=$(readlink "$link")
+    name=$(basename "$link")
+    case "$linked" in *" $name "*) continue;; esac
+    [ -d "$content/$name" ] || refuse "$codex" "symlink $name is not backed by the skills repo; remove it or add the skill"
+    [ "$target" = "$content/$name" ] || { echo "prune-stale $link"; run rm "$link"; }
+  done
+}
+
+[ -d "$content" ] || refuse "$content" "skills content directory missing"
+
+link_whole_dir "$HOME/.agents/skills"
+link_whole_dir "$HOME/.claude/skills"
+link_codex
+echo "skills linked"

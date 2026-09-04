@@ -1,0 +1,6 @@
+interface:
+  display_name: "Focus"
+  short_description: "Do the core ask with minimal overhead"
+  default_prompt: "Use $focus to complete this request with the smallest sufficient action and verification."
+policy:
+  allow_implicit_invocation: false
