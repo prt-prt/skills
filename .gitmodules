@@ -1,0 +1,3 @@
+[submodule "vvvv-skills"]
+	path = vvvv-skills
+	url = https://github.com/tebjan/vvvv-skills
